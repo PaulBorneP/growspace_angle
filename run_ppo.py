@@ -50,9 +50,12 @@ momentum = 0.95
 
 
 os.environ['WANDB_DIR'] = "/Users/newt/Desktop/CS/SDI/RL/projet/angular_growspace/wandb"
+
+
 def main():
 
-    wandb.init(project='growspace_angular',dir="/Users/newt/Desktop/CS/SDI/RL/projet/angular_growspace/wandb")
+    wandb.init(project='growspace_angular',
+               dir="/Users/newt/Desktop/CS/SDI/RL/projet/angular_growspace/wandb")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     envs = make_vec_envs(env_name, seed, num_processes,

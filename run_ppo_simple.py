@@ -7,14 +7,12 @@ import numpy as np
 from envs import make_env
 import gym
 import growspace
+from tqdm import tqdm
 
 
 def main():
-    env_name = "GrowSpaceEnv-Control-v0"
+    env_name = "GrowSpaceEnv-Angular-v0"
     env = gym.make(env_name)
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
-    n_latent_var = 64           # number of variables in hidden layer
     lr_actor = 0.02
     lr_critic = 0.02
     betas = (0.9, 0.999)
@@ -26,13 +24,12 @@ def main():
     ppo = PPO_Simple(env, lr_actor,
                      lr_critic, betas, gamma, n_epochs, eps_clip, device)
 
-    wandb.init(project='growspace_angular',
+    wandb.init(project='growspace_angular', name="PPO_Simple_Angular",
                dir="/Users/newt/Desktop/CS/SDI/RL/projet/angular_growspace/wandb")
 
     memory = Memory()
     max_timesteps = 2500
-    update_timestep = 2500
-    log_interval = 10
+    log_interval = 1
     timestep = 0
     running_reward = 0
     episode_rewards = []
@@ -40,8 +37,10 @@ def main():
     episode_success = []
 
     # training loop
-    for j in range(400):
+    for j in tqdm(range(400)):
         state = env.reset()
+        running_reward = 0
+        timestep = 0
         for t in range(max_timesteps):
             timestep += 1
             total_num_steps = (j + 1) * max_timesteps
@@ -50,28 +49,24 @@ def main():
             state, reward, done, info = env.step(action)
             memory.rewards.append(reward)
             memory.is_terminals.append(done)
-            if 'episode' in info.keys():
-                episode_rewards.append(info['episode']['r'])
-                episode_length.append(info['episode']['l'])
-                wandb.log(
-                    {"Episode_Reward": info['episode']['r']}, step=total_num_steps)
+            running_reward += reward
 
-            if 'success' in info.keys():
-                episode_success.append(info['success'])
-                wandb.log(
-                    {"Episode_Success": info['success']}, step=total_num_steps)
-
-    #         # update if its time
-            if timestep % update_timestep == 0:
-                loss, value_loss, action_loss, dist_entropy = ppo.update(
-                    memory)
-
-                memory.clear_memory()
+            if done:
+                episode_rewards.append(running_reward)
+                episode_length.append(t)
+                if info['success']:
+                    episode_success.append(1)
+                else:
+                    episode_success.append(0)
+                state = env.reset()
+                running_reward = 0
                 timestep = 0
 
-            running_reward += reward
-            if done:
-                break
+        # update if its time
+        loss, value_loss, action_loss, dist_entropy = ppo.update(
+            memory)
+
+        memory.clear_memory()
 
         if j % log_interval == 0 and len(episode_rewards) > 1:
 
@@ -83,6 +78,7 @@ def main():
                       step=total_num_steps)
             wandb.log({"Reward Max": np.max(episode_rewards)},
                       step=total_num_steps)
+
             wandb.log({"Entropy": dist_entropy}, step=total_num_steps)
             wandb.log({"Value Loss": value_loss}, step=total_num_steps)
             wandb.log({"Action Loss": action_loss}, step=total_num_steps)
